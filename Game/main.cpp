@@ -26,9 +26,7 @@ void grayScale(unsigned char* imgData, int width, int height) {
 			unsigned char green = imgData[index + 1];
 			unsigned char blue = imgData[index + 2];
 			unsigned char gray = toGrayscale(red, green, blue);
-			imgData[index] = gray;
-			imgData[index + 1] = gray;
-			imgData[index + 2] = gray;
+			imgData[index] = imgData[index + 1] = imgData[index + 2] = gray;
 		}
 	}
 }
@@ -71,9 +69,7 @@ void applyGaussianFilter(unsigned char* imgData, int width, int height, float* k
 				}
 			}
 			int outputIndex = (y * width + x) * 4;
-			output[outputIndex] = static_cast<unsigned char>(sum);
-			output[outputIndex + 1] = output[outputIndex];
-			output[outputIndex + 2] = output[outputIndex];
+			output[outputIndex] = output[outputIndex + 1] = output[outputIndex + 2] = static_cast<unsigned char>(sum);
 			output[outputIndex + 3] = 255;
 		}
 	}
@@ -199,15 +195,10 @@ void cannyEdge(unsigned char* imgData, int width, int height) {
 
 	for (int i = 0; i < width * height; i++) {
 		if (edges[i] == STRONG_EDGE) {
-			imgData[i * 4] = 255;
-			imgData[i * 4 + 1] = 255;
-			imgData[i * 4 + 2] = 255;
-			imgData[i * 4 + 3] = 255;
+			imgData[i * 4] = imgData[i * 4 + 1] = imgData[i * 4 + 2] = imgData[i * 4 + 3] = 255;
 		}
 		else {
-			imgData[i * 4] = 0;
-			imgData[i * 4 + 1] = 0;
-			imgData[i * 4 + 2] = 0;
+			imgData[i * 4] = imgData[i * 4 + 1] = imgData[i * 4 + 2] = 0;
 			imgData[i * 4 + 3] = 255;
 		}
 	}
@@ -218,41 +209,33 @@ void cannyEdge(unsigned char* imgData, int width, int height) {
 	delete[] edges;
 }
 
-void halftonePattern(unsigned char* imgData, int width, int height) {
-	for (int y = 0; y < height; y += 2) {
-		for (int x = 0; x < width; x += 2) {
-			int totalIntensity = 0;
+unsigned char* halftonePattern(unsigned char* imgData, int width, int height) {
+	unsigned char* newImg = new unsigned char[width * 2 * height * 2 * 4];
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			int blackSubPixels = (256 - imgData[(y * width + x) * 4]) / 48;
 			for (int dy = 0; dy < 2; dy++) {
 				for (int dx = 0; dx < 2; dx++) {
-					if (x + dx < width && y + dy < height) {
-						int index = ((y + dy) * width + (x + dx)) * 4;
-						totalIntensity += imgData[index];
-					}
-				}
-			}
-			float avgIntensity = totalIntensity / 4.0;
-			int blackSubPixels = (256 - avgIntensity) / 48;
-			for (int dy = 0; dy < 2; dy++) {
-				for (int dx = 0; dx < 2; dx++) {
-					if (x + dx < width && y + dy < height) {
-						int subIndex = ((y + dy) * width + (x + dx)) * 4;
+					if (x + dx < width * 2 && y + dy < height * 2) {
+						int subIndex = ((y * 2 + dy) * width * 2 + (x * 2 + dx)) * 4;
 						if (blackSubPixels > 0) {
-							imgData[subIndex] = imgData[subIndex + 1] = imgData[subIndex + 2] = 0;
+							newImg[subIndex] = newImg[subIndex + 1] = newImg[subIndex + 2] = 0;
 							blackSubPixels--;
 						}
 						else {
-							imgData[subIndex] = imgData[subIndex + 1] = imgData[subIndex + 2] = 255;
+							newImg[subIndex] = newImg[subIndex + 1] = newImg[subIndex + 2] = 255;
 						}
-						imgData[subIndex + 3] = 255;
+						newImg[subIndex + 3] = 255;
 					}
 				}
 			}
 		}
 	}
+	return newImg;
 }
 
 unsigned char closestColor(unsigned char pixelValue) {
-	int level = pixelValue / 16;
+	int level = static_cast<int>(round(pixelValue / 255.0 * 15));
 	return static_cast<unsigned char>(level * 16);
 }
 
@@ -292,7 +275,7 @@ void writeImage(const unsigned char* imgData, int width, int height, const std::
 			unsigned char value = imgData[index];
 			int outputValue;
 			if (isGrayscale) {
-				outputValue = (value * 15) / 255;
+				outputValue = (value * 16) / 256;
 			}
 			else {
 				outputValue = value > 127 ? 1 : 0;
@@ -343,8 +326,8 @@ int main(int argc,char *argv[])
 	writeImage(copy, width, height, "img4.txt", false);
 
 	std::memcpy(copy, imgData, imgSize);
-	halftonePattern(copy, width, height);
-	scn->AddTexture(width, height, copy);
+	unsigned char* halftone = halftonePattern(copy, width, height);
+	scn->AddTexture(width * 2, height * 2, halftone);
 	scn->SetShapeTex(0, 2);
 	scn->CustomDraw(1, 0, scn->BACK, false, false, 2);
 	writeImage(copy, width, height, "img5.txt", false);
@@ -370,6 +353,7 @@ int main(int argc,char *argv[])
 	delete scn;
 	stbi_image_free(imgData);
 	delete[] copy;
+	delete[] halftone;
 	return 0;
 }
 
